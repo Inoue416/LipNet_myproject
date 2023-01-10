@@ -1,0 +1,21 @@
+import os
+gpu = '0'
+random_seed = 0
+data_type = 'unseen'
+video_path = '/HDD/research_material'
+#video_path = 'data/'
+train_list = 'train_path.txt'
+val_list = 'val_path.txt'
+anno_path = 'anno_data_origin'
+vid_padding = 925
+txt_padding = 280
+batch_size = 2
+base_lr = 0.0001#2e-05
+num_workers = 0
+max_epoch = 200#30#100
+display = 20
+test_step = 350
+save_prefix = f'_wyyyy_mm_dd_tNvN_Wdecay1e-5_dp0.50_vp925_tp280_batch2_ep200_romaji/2022_9_12_t5666v630_Wdecay0_dp0.30_LipNet_{data_type}'
+is_optimize = True
+#weights = ""
+log_dir=f"{base_lr}_l2022_11_17_t5666v630_Wdecay1e-5_dp0.50_vp925_tp280_batch2_ep200_romaji"
