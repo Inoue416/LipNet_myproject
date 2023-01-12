@@ -2,8 +2,7 @@ import os
 gpu = '0'
 random_seed = 0
 data_type = 'unseen'
-video_path = '/HDD/research_material'
-#video_path = 'data/'
+video_path = ''
 train_list = 'train_path.txt'
 val_list = 'val_path.txt'
 anno_path = 'anno_data_origin'
