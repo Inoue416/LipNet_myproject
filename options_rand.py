@@ -1,0 +1,23 @@
+import os
+gpu = '0'
+random_seed = 0
+data_type = 'unseen'
+train_list = 'data/emotion_train_path.txt'
+val_list = 'data/emotion_val_path.txt'
+anno_path = '/media/yuyainoue/neelabHDD/yuyainoueHDD/ITA_data/anno_data_romaji'
+vid_padding = 1120
+batch_size = 16
+base_lr = 0.0001#2e-05
+num_workers = 0
+max_epoch = 300#30#100
+display = 100
+test_step = 45
+year = 2023
+month = 3
+day = 31
+train_num = 1530
+val_num = 170
+save_prefix = f'_w_{year}_{month}_{day}_t{train_num}v{val_num}_Wdecay0.0001_dp0.80_vp{vid_padding}_batch{batch_size}_ep{max_epoch}_norm_x1/{year}_{month}_{day}_t{train_num}v{val_num}_Wdecay0.0001_dp0.50_LSTM_{data_type}'
+is_optimize = True
+#weights = "weights/2023_1_26_t1530v170_Wdecay0_dp0.30_LSTM_unseen_loss.pt"
+log_dir=f"{base_lr}_l_{year}_{month}_{day}_t{train_num}v{val_num}_Wdecay0.0001_dp0.50_vp{vid_padding}_batch{batch_size}_ep{max_epoch}_rand_norm"

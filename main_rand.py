@@ -6,20 +6,21 @@ from torch.utils.data import DataLoader
 import math
 import os
 import sys
-from dataset import MyDataset
+from dataset_rand import MyDataset
 import numpy as np
 import time
-from model import LipNet
+# from lstm_randlabel import LstmNet
+from model_detect_lstm_norm import LstmNet
 import torch.optim as optim
 import re
 import json
 from tensorboardX import SummaryWriter
-import options as opt
+import options_rand as opt
 
 
 
 if(__name__ == '__main__'):
-    opt = __import__('options')
+    opt = __import__('options_rand')
     os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu
     writer = SummaryWriter(log_dir=opt.log_dir) # ダッシュボード作成
 
@@ -55,13 +56,16 @@ def test(model, net):
     crit = nn.CrossEntropyLoss()
     tic = time.time()
     for (i_iter, input) in enumerate(loader):
-        vid = input.get('vid').cuda()
+        rand = input.get('rand').cuda()
         label = input.get('label').cuda()
-        y = net(vid) # ネットへビデオデータを入れる
+        label = torch.reshape(label, (opt.batch_size,))
+
+        y = net(rand) # ネットへビデオデータを入れる
         # 損出関数での処理
         loss = crit(y, label).detach().cpu().numpy()
         # 損出関数の値を記録
         loss_list.append(loss)
+        
         # 結果の文字を入れる
         # 正しい文字列を入れる
 
@@ -71,7 +75,7 @@ def test(model, net):
             eta = v * (len(loader)-i_iter) / 3600.0
 
             print(''.join(101*'-'))
-            print('{}: {} | {}: {}'.format('predict', torch.argmax(y, dim=1), 'truth', torch.argmax(label, dim=1)))
+            print('{}: {} | {}: {}'.format('predict', torch.argmax(y, dim=1), 'truth', label))
             print(''.join(101*'-'))
             print(''.join(101 *'-'))
             print('test_iter={},loss={}'.format(i_iter,loss))
@@ -94,7 +98,7 @@ def train(model, net):
     # optimizerの初期化(Adam使用)
     optimizer = optim.Adam(model.parameters(),
                 lr = opt.base_lr,
-                weight_decay = 0,#.001,#0.01,#0.1, # パラメータのL2ノルムを正規化としてどれくらい用いるから指定
+                weight_decay = 0.0001,#.001,#0.01,#0.1, # パラメータのL2ノルムを正規化としてどれくらい用いるから指定
                 eps=1e-8,
                 amsgrad = True)# AMSgradを使用する
     """optimizer = optim.SGD(model.parameters(),
@@ -109,14 +113,16 @@ def train(model, net):
     for epoch in range(opt.max_epoch): # epoch分学習する
         for (i_iter, input) in enumerate(loader):
             model.train() # 訓練モードへ
-            vid = input.get('vid').cuda()
+            rand = input.get('rand').cuda()
             label = input.get('label').cuda()
+            label = torch.reshape(label, (opt.batch_size,))
 
             optimizer.zero_grad() # パラメータ更新が終わった後の勾配のクリアを行っている。
-            y = net(vid) # ビデオデータをネットに投げる
+            y = net(rand) # ビデオデータをネットに投げる
             
             # 損出を求める
             loss = crit(y, label)
+            
             loss_list.append(loss)
 
             # 損出をもとにバックワードで学習
@@ -134,33 +140,28 @@ def train(model, net):
 
                 writer.add_scalar('train loss', loss, tot_iter)
                 print(''.join(101*'-'))
-                print('{}: {} | {}: {}'.format('predict', torch.argmax(y, dim=1), 'truth', torch.argmax(label, dim=1)))
+                print('{}: {} | {}: {}'.format('predict', torch.argmax(y, dim=1), 'truth', label))
                 print(''.join(101*'-'))
                 print(''.join(101*'-'))
                 print('epoch={},tot_iter={},base_lr={},eta={},loss_mean={},loss={}'.format(epoch, tot_iter, opt.base_lr, eta, torch.mean(torch.stack(loss_list)), loss))
                 print(''.join(101*'-'))
-                if (tot_iter % 1000 == 0):
-                    savename = 'base_lr{}_{}_loss.pt'.format(opt.base_lr, opt.save_prefix, torch.mean(torch.stack(loss_list))) # 学習した重みを保存するための名前を作成
-                    (path, name) = os.path.split(savename)
-                    if(not os.path.exists(path)): os.makedirs(path) # 重みを保存するフォルダを作成する
-                    torch.save(model.state_dict(), savename) # 学習した重みを保存
-                if(not opt.is_optimize):
-                    exit()
 
             if(tot_iter % opt.test_step == 0):
                 loss = test(model, net)
                 print('i_iter={},lr={},loss={}'
                     .format(tot_iter,show_lr(optimizer),loss))
                 writer.add_scalar('val loss', loss, tot_iter)
-                
-                #savename = 'base_lr{}_{}_loss_{}_wer_{}_cer_{}.pt'.format(opt.base_lr, opt.save_prefix, loss,  wer, cer) # 学習した重みを保存するための名前を作成
-                #(path, name) = os.path.split(savename)
-                #if(not opt.is_optimize):
-                    #exit()
+                if (tot_iter % 1000 == 0):
+                    savename = 'base_lr{}_{}_losst{}_lossv{}.pt'.format(opt.base_lr, opt.save_prefix, torch.mean(torch.stack(loss_list)), loss) # 学習した重みを保存するための名前を作成
+                    (path, name) = os.path.split(savename)
+                    if(not os.path.exists(path)): os.makedirs(path) # 重みを保存するフォルダを作成する
+                    torch.save(model.state_dict(), savename) # 学習した重みを保存
+                if(not opt.is_optimize):
+                    exit()
 
 if(__name__ == '__main__'):
     print("Loading options...")
-    model = LipNet() # モデルの定義
+    model = LstmNet() # モデルの定義
     model = model.cuda() # gpu使用
     net = nn.DataParallel(model).cuda() # データの並列処理化
 

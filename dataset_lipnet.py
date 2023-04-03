@@ -19,47 +19,70 @@ import editdistance
 
 class MyDataset(Dataset):
     #letters = [' ', 'A', 'I', 'U', 'E', 'O']
-    #letters = [' ', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
-    letters = ['a', 'i', 'u', 'e', 'o', 'k', 's', 't', 'n', 'h', 'm', 'y', 'r', 'w', '*', 'g', 'z', 'd', 'b', 'p', 'l', 'v', '^', '-', ' ']
-    labels = ["ama", "normal", "sexy", "tsun", "whis"]
+    letters = [' ', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+    #letters = ['a', 'i', 'u', 'e', 'o', 'k', 's', 't', 'n', 'h', 'm', 'y', 'r', 'w', '*', 'g', 'z', 'd', 'b', 'p', 'l', 'v', '^', '-', ' ']
 
 
-    def __init__(self, anno_path, file_list, vid_pad, phase):
+    def __init__(self, video_path, anno_path, file_list, vid_pad, txt_pad, phase, txt_kind='anno_data_romaji'):
         self.anno_path = anno_path # 正解文字列データのパスを格納
         self.vid_pad = vid_pad # ビデオデータのパッディングの数
+        self.txt_pad = txt_pad # テキストのパッディング
         self.phase = phase # train か testのフェーズを格納
-        self.video_data = None
+        self.video_data = []
+        self.txt_kind = txt_kind
         # ビデオまでのパスを読み出す
-        with open(os.path.join(file_list), 'r') as f:
-            self.video_data = (f.read()).split('\n')
-            while '' in self.video_data:
-                self.video_data.remove('')
-
+        with open(os.path.join(video_path, file_list), 'r') as f:
+            self.video_data = [os.path.join(video_path, line.rstrip()) for line in f.readlines()]
+        self.video_path = video_path
     # データのロード
     def __getitem__(self, idx):
         vid = self.video_data[idx] # spkビデオの入っているフォルダまでのパス
         path_sep = vid.split('/')
         anno_kind = None
-        # if path_sep[-2] == 'recitation':
-        #     number = (path_sep[-1])[-3:]
-        #     anno_kind = os.path.join('recitation', 'recitation324_'+number)
-        # else:
-        #     number = (path_sep[-1])[-3:]
-        #     anno_kind = os.path.join('emotion', 'emotion100_'+number)
-        
+
+        if (path_sep[5])[0] == 'R':                
+            anno_kind = path_sep[:6]
+            anno_kind.append(self.txt_kind)
+            anno_kind.append(path_sep[-1]+'.txt')
+        else:
+            if path_sep[-2] == 'recitation':
+                number = (path_sep[-1])[-3:]
+                anno_kind = path_sep[:6]
+                anno_kind.append(self.txt_kind)
+                anno_kind.append('recitation')
+                anno_kind.append('recitation324_'+number+'.txt')
+            else:
+                number = (path_sep[-1])[-3:]
+                anno_kind = path_sep[:6]
+                anno_kind.append(self.txt_kind)
+                anno_kind.append('emotion')
+                anno_kind.append('emotion100_'+number+'.txt')
         vid = self._load_vid(vid) # ビデオデータのフレームをロード
-        label = self._load_label(path_sep[-2])
+        anno_kind.remove('')
+        anno_p = '/'.join(anno_kind)
+        anno_p = '/'+anno_p
+        
+        anno = self._load_anno(anno_p) # 正解の文字列データのロード
+
         # trainの場合、水平(垂直)反転
         if(self.phase == 'train'):
             vid = HorizontalFlip(vid)
+
         # 色の標準化
         vid = ColorNormalize(vid)
 
+        
+        vid_len = vid.shape[0] # ビデオの数
+        anno_len = anno.shape[0] # アノテーションの数
+
+
         vid = self._padding(vid, self.vid_pad) # ビデオのパッディング
-        return {
-            'vid': torch.FloatTensor(vid.transpose(3, 0, 1, 2)),
-            'label': torch.FloatTensor(label),
-        }
+        anno = self._padding(anno, self.txt_pad) # アノテーションのパッディング
+        
+        return {'vid': torch.FloatTensor(vid.transpose(3, 0, 1, 2)),
+            'txt': torch.LongTensor(anno),
+            'txt_len': anno_len,
+            'vid_len': vid_len}
 
     # データの長さを返す関数
     def __len__(self):
@@ -85,14 +108,9 @@ class MyDataset(Dataset):
             txt = lines[0].split(' ')
             text = []
             for t in txt:
-                #text.append(t)
                 text.append(t.upper())
+                #text.append(t)
         return MyDataset.txt2arr(' '.join(text), 1)
-    
-    def _load_label(self, kind):
-        result = np.zeros(5)
-        result[MyDataset.labels.index(kind)] = 1
-        return result
 
     # パッディング
     def _padding(self, array, length):
@@ -101,6 +119,7 @@ class MyDataset(Dataset):
         for i in range(length - len(array)):
             array.append(np.zeros(size))
         return np.stack(array, axis=0)
+
 
     @staticmethod
     def txt2arr(txt, start):
@@ -141,12 +160,24 @@ class MyDataset(Dataset):
         cer = [1.0*editdistance.eval(p[0], p[1])/len(p[1]) for p in zip(predict, truth)]
         return cer
 
+if __name__ == '__main__':
+    import sys
+    sys.setrecursionlimit(2000)
+    def load_test(count , max, dataset):
+        if max <= count:
+            return
+        load_test(count+1, max, dataset)
+        data = dataset.__getitem__(count)
+        print(data.get('vid'))
+        print(data.get('txt'))
 
-import options as opt
-if __name__ == "__main__":
     dataset = MyDataset(
-            opt.anno_path,
-            opt.val_list,
-            opt.vid_padding,
-            'train')
-    print((dataset.__getitem__(0)).get('label'))
+        'data',
+        'anno_data',
+        'val_lips_path.txt',
+        1120,
+        270,
+        'val'
+    )
+
+    load_test(0, 1520, dataset)

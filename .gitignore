@@ -1,2 +1,7 @@
 .gitkeep
 __pycache__
+data/check_randlabel.py
+make_train_val.py
+check_rohan.py
+train_logs/
+test_space/*.png

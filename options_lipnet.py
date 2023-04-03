@@ -1,0 +1,27 @@
+import os
+gpu = '0'
+random_seed = 0
+data_type = 'unseen'
+video_path = 'data/'
+train_list = 'train_frame_99to290_path.txt'
+val_list = 'val_frame_99to290_path.txt'
+data_len = 'lip99to290'
+anno_path = 'anno_data'
+vid_padding = 289
+txt_padding = 137  # text padding train max -> 137, train min -> 5, val max -> 53, val min -> 49
+batch_size = 2
+base_lr = 0.0001
+num_workers = 0
+max_epoch = 150
+display = 100
+test_step = 2600
+year = 2023
+month = 3
+day = 19
+train_num = 5384  # TODO: 書き換え
+val_num = 1345  # TODO: 書き換え
+model_mode = 'lip*rand'
+save_prefix = f'_w_{year}_{month}_{day}_t{train_num}v{val_num}_Wdecay0_dp0.30_vp{vid_padding}_tp{txt_padding}_batch{batch_size}_ep{max_epoch}_romaji_{data_len}_{model_mode}/{year}_{month}_{day}_t{train_num}v{val_num}_Wdecay0_dp0.30_LipNet+rand_{data_type}'
+is_optimize = True
+# weights = ''
+log_dir=f"{base_lr}_l_{year}_{month}_{day}_t{train_num}v{val_num}_Wdecay0_dp0.30_vp{vid_padding}_tp{txt_padding}_batch{batch_size}_ep{max_epoch}_romaji_{data_len}_{model_mode}"

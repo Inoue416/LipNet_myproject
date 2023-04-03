@@ -45,12 +45,12 @@ class MyDataset(Dataset):
         rand = self._rand_padding(rand, self.vid_pad) # ビデオのパッディング
         return {
             'rand': torch.FloatTensor(rand),
-            'label': torch.FloatTensor(label),
+            'label': torch.LongTensor(label),
         }
 
     # データの長さを返す関数
     def __len__(self):
-        return len(self.video_data)
+        return len(self.rand_data)
     
     # ビデオのロード
     def _load_rand(self, p):
@@ -63,19 +63,27 @@ class MyDataset(Dataset):
                 number = np.array(number)
                 number = number.reshape(number.shape[0]//2, 2)
                 number[:, 1] *= -1
-                rand.append(number)
-        rand = np.stack(rand, axis=0).astype(np.float32)
+                rand.append(np.linalg.norm(number[48:, :]))
+        rand = np.array(rand)
+        rand_min = np.min(rand)
+        rand_max = np.max(rand)
+        rand = (rand - rand_min) \
+            / (rand_max - rand_min)
+        #         rand.append(number)
+        # rand = np.array(rand)
+        # rand = [rand[i]-rand[i+1] for i in range(rand.shape[0]-1)]
+        # rand = np.stack(rand, axis=0).astype(np.float32)
         return rand
     
     def _load_label(self, kind):
-        result = np.zeros(5)
-        result[MyDataset.labels.index(kind)] = 1
+        result = np.zeros(1,)
+        result[0] = MyDataset.labels.index(kind)
         return result
 
     def _rand_padding(self, array, length):
         size = length - array.shape[0]
-        pd_arr = np.zeros([size, array.shape[1], array.shape[2]])
-        return np.vstack([array, pd_arr])
+        pd_arr = np.zeros([size,])
+        return np.hstack([array, pd_arr])
 
     # パッディング
     def _padding(self, array, length):
@@ -94,10 +102,6 @@ if __name__ == "__main__":
             opt.val_list,
             opt.vid_padding,
             'train')
-    data = (dataset.__getitem__(0)).get('rand')
-    sample = data[0]
-    print(data.size())
-    print(sample.size())
     print(dataset.__getitem__(0).get('label'))
-    plt.scatter(sample[:, 0], sample[:, 1])
-    plt.show()
+    # plt.scatter(sample[:, 0], sample[:, 1])
+    # plt.show()
