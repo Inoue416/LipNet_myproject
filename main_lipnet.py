@@ -1,18 +1,12 @@
 import torch
 import torch.nn as nn
-import torch.nn.init as init
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
-import math
 import os
-import sys
 from dataset_lipnet import MyDataset
 import numpy as np
 import time
 from model_lipnet import LipNet
 import torch.optim as optim
-import re
-import json
 from tensorboardX import SummaryWriter
 import options_lipnet as opt
 
