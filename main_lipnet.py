@@ -98,7 +98,7 @@ def test(model, net):
                 print(''.join(101 *'-'))
                 print('test_iter={},loss={},eta={},wer={},cer={}'.format(i_iter,loss,eta,np.array(wer).mean(),np.array(cer).mean()))
                 print(''.join(101 *'-'))
-            break
+        
         print('\n\ntest finish time: {:.2f} s\n\n'.format(time.time() - tic))
         return (np.array(loss_list).mean(), np.array(wer).mean(), np.array(cer).mean())
 
