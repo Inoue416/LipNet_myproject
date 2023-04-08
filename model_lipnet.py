@@ -7,9 +7,10 @@ import numpy as np
 
 
 class LipNet(torch.nn.Module):
-    def __init__(self, dropout_p=0.30):
+    def __init__(self, color_mode, dropout_p=0.30):  # color_mode -> 0: gray or 1: RGB
         super(LipNet, self).__init__()
-        self.conv1 = nn.Conv3d(3, 32, (3, 5, 5), (1, 2, 2), (1, 2, 2))
+        first_feature = 3 if color_mode else 1
+        self.conv1 = nn.Conv3d(first_feature, 32, (3, 5, 5), (1, 2, 2), (1, 2, 2))
         self.pool1 = nn.MaxPool3d((1, 2, 2), (1, 2, 2))
 
         self.conv2 = nn.Conv3d(32, 64, (3, 5, 5), (1, 1, 1), (1, 2, 2))
@@ -25,12 +26,12 @@ class LipNet(torch.nn.Module):
         self.gru2  = nn.GRU(512, 256, 1, bidirectional=True)
         #self.gru3 = nn.GRU(512, 256, 1, bidirectional=True)
 
-        self.FC    = nn.Linear(512, 25+1)
+        # self.FC    = nn.Linear(512, 25+1)
 
         #self.gru1  = nn.GRU(96*4*8, 256, 1, bidirectional=True)
         #self.gru2  = nn.GRU(512, 256, 1, bidirectional=True)
 
-        #self.FC    = nn.Linear(512, 27+1)
+        self.FC    = nn.Linear(512, 27+1)
         self.dropout_p  = dropout_p
 
         self.relu = nn.ReLU(inplace=True)
@@ -104,23 +105,30 @@ class LipNet(torch.nn.Module):
         x = self.dropout3d(x)
         x = self.pool3(x)
 
+        # x = x.clone().detach().requires_grad_(True)
         # (B, C, T, H, W)->(T, B, C, H, W)
-        x = x.permute(2, 0, 1, 3, 4).contiguous() # 軸の順番を変更
+        out = x.permute(2, 0, 1, 3, 4).contiguous() # 軸の順番を変更
         # また、contiguous()はviewにするとき、メモリ上に要素順に並ぶため、エラーを回避できる
         # (B, C, T, H, W)->(T, B, C*H*W)
-        x = x.view(x.size(0), x.size(1), -1).contiguous()
+        out = out.view(out.size(0), out.size(1), -1).contiguous()
 
         # RNNの重みがメモリ上で非連続にならないように
         # また、パラメータデータポインターをリセットして、より高速なコードパスを使用できるようになっている。
         self.gru1.flatten_parameters()
         self.gru2.flatten_parameters()
         #self.gru3.flatten_parameters()
-        x, h = self.gru1(x)
-        x = self.dropout(x)
-        x, h = self.gru2(x)
-        x = self.dropout(x)
+        out, h = self.gru1(out)
+        out = self.dropout(out)
+        out, h = self.gru2(out)
+        out = self.dropout(out)
         #x, h = self.gru3(x)
         #x = self.dropout(x)
-        x = self.FC(x)
-        x = x.permute(1, 0, 2).contiguous()
-        return x
+        out = self.FC(out)
+        out = out.permute(1, 0, 2).contiguous()
+        return out#, x
+
+if __name__ == '__main__':
+    inputs = torch.randn(1, 1, 179, 64, 128)
+    model = LipNet(color_mode=0)
+    out = model(inputs)
+    print(out.size())
