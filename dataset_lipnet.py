@@ -73,7 +73,8 @@ class MyDataset(Dataset):
             vid = HorizontalFlip(vid)
         # 色の標準化
         vid = ColorNormalize(vid)
-
+        if opt.color_mode == 0:
+            vid = vid.reshape(vid.shape[0], vid.shape[1], vid.shape[2], 1)
         
         vid_len = vid.shape[0] # ビデオの数
         anno_len = anno.shape[0] # アノテーションの数
