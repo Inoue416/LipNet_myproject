@@ -13,23 +13,27 @@ import copy
 import json
 import random
 import editdistance
+import options_lipnet as opt
 #from extract_lips import get_lips
 
 
 
 class MyDataset(Dataset):
-    #letters = [' ', 'A', 'I', 'U', 'E', 'O']
-    letters = [' ', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
-    #letters = ['a', 'i', 'u', 'e', 'o', 'k', 's', 't', 'n', 'h', 'm', 'y', 'r', 'w', '*', 'g', 'z', 'd', 'b', 'p', 'l', 'v', '^', '-', ' ']
+    def choice_letters(kind):
+        if 'anno_data_romaji' == kind:
+            return [' ', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+        return [' ', 'a', 'i', 'u', 'e', 'o', 'k', 's', 't', 'n', 'h', 'm', 'y', 'r', 'w', '*', 'g', 'z', 'd', 'b', 'p', 'l', 'v', '^', '-']
+    # letters = [' ', 'A', 'I', 'U', 'E', 'O']
+    letters = choice_letters(opt.anno_kind)
 
-
-    def __init__(self, video_path, anno_path, file_list, vid_pad, txt_pad, phase, txt_kind='anno_data_romaji'):
+    def __init__(self, video_path, anno_path, file_list, vid_pad, txt_pad, phase, txt_kind, color_mode):
         self.anno_path = anno_path # 正解文字列データのパスを格納
         self.vid_pad = vid_pad # ビデオデータのパッディングの数
         self.txt_pad = txt_pad # テキストのパッディング
         self.phase = phase # train か testのフェーズを格納
         self.video_data = []
         self.txt_kind = txt_kind
+        self.color_mode = color_mode
         # ビデオまでのパスを読み出す
         with open(os.path.join(video_path, file_list), 'r') as f:
             self.video_data = [os.path.join(video_path, line.rstrip()) for line in f.readlines()]
@@ -67,7 +71,6 @@ class MyDataset(Dataset):
         # trainの場合、水平(垂直)反転
         if(self.phase == 'train'):
             vid = HorizontalFlip(vid)
-
         # 色の標準化
         vid = ColorNormalize(vid)
 
@@ -94,7 +97,10 @@ class MyDataset(Dataset):
         # フィルタリング .pngを見つける
         files = list(filter(lambda file: file.find('.png') != -1, files))# 構文みたいなもの
         files = sorted(files, key=lambda file: int(os.path.splitext(file)[0])) # splitextは拡張子(.jpgなど)を抽出できる
-        array = [cv2.imread(os.path.join(p, file)) for file in files] # フレームデータのロード
+        if self.color_mode == 0:
+            array = [cv2.imread(os.path.join(p, file), cv2.IMREAD_GRAYSCALE) for file in files] # フレームデータのロード
+        else:
+            array = [cv2.imread(os.path.join(p, file)) for file in files] # フレームデータのロード
         array = list(filter(lambda im: not im is None, array)) # データないものをフィルタリングする
         array = np.stack(array, axis=0).astype(np.float32)
         return array
@@ -108,8 +114,10 @@ class MyDataset(Dataset):
             txt = lines[0].split(' ')
             text = []
             for t in txt:
-                text.append(t.upper())
-                #text.append(t)
+                if self.txt_kind == 'anno_data_romaji':
+                    text.append(t.upper())
+                if self.txt_kind == 'anno_data_mydic':
+                    text.append(t)
         return MyDataset.txt2arr(' '.join(text), 1)
 
     # パッディング
@@ -161,15 +169,16 @@ class MyDataset(Dataset):
         return cer
 
 if __name__ == '__main__':
-    import sys
-    sys.setrecursionlimit(2000)
-    def load_test(count , max, dataset):
-        if max <= count:
-            return
-        load_test(count+1, max, dataset)
-        data = dataset.__getitem__(count)
-        print(data.get('vid'))
-        print(data.get('txt'))
+    # import sys
+    # sys.setrecursionlimit(2000)
+    # def load_test(count , max, dataset):
+    #     if max <= count:
+    #         return
+    #     load_test(count+1, max, dataset)
+    #     data = dataset.__getitem__(count)
+    #     print(data.get('vid'))
+    #     print(data.get('txt'))
+    import options_lipnet as opt
 
     dataset = MyDataset(
         'data',
@@ -177,7 +186,8 @@ if __name__ == '__main__':
         'val_lips_path.txt',
         1120,
         270,
-        'val'
+        'val',
+        opt.anno_kind,
+        opt.color_mode
     )
-
-    load_test(0, 1520, dataset)
+    print(dataset.__getitem__(0).get('vid').size())
