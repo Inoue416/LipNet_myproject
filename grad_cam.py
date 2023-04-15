@@ -103,7 +103,7 @@ def load_data(data_path):
 
 
 def predict(model, data, txt, vid_len, txt_len):
-    model = model.train()
+    model = model.eval()
     data = data.unsqueeze(0)
     out, feature = model(data)
     crit = nn.CTCLoss()
@@ -247,7 +247,7 @@ if __name__ == '__main__':
         os.makedirs(GRAD_CAM_SAVE_ROOT)
 
     model = LipNet(color_mode=1, dictype='anno_data_mydic', is_grad=True) # モデルの定義
-    pretrained_dict = torch.load(f=opt.weights)# 学習済みの重みをロード
+    pretrained_dict = torch.load(f=WEIGHT)# 学習済みの重みをロード
     model_dict = model.state_dict()
     pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict.keys() and v.size() == model_dict[k].size()}
     missed_params = [k for k, v in model_dict.items() if not k in pretrained_dict.keys()]
