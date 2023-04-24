@@ -1,5 +1,5 @@
 import os
-from datasets.dataset import MyDataset
+from datasets.dataset_land_read_detec import MyDataset
 gpu = '0'
 random_seed = 0
 data_type = 'unseen'

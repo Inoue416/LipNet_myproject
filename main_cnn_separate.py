@@ -2,13 +2,13 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import os
-from dataset_lipnet import MyDataset
+from datasets.dataset_lipnet import MyDataset
 import numpy as np
 import time
-from model_cnn_separate import LipNetCNNSeparate
+from mymodels.model_cnn_separate import LipNetCNNSeparate
 import torch.optim as optim
 from tensorboardX import SummaryWriter
-import options_lipnet as opt
+import options.options_lipnet as opt
 
 
 

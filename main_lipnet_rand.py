@@ -6,15 +6,15 @@ from torch.utils.data import DataLoader
 import math
 import os
 import sys
-from dataset_lipnet_rand import MyDataset
+from datasets.dataset_lipnet_rand import MyDataset
 import numpy as np
 import time
-from model_lipnet_lstm import LipNet
+from mymodels.model_lipnet_lstm import LipNet
 import torch.optim as optim
 import re
 import json
 from tensorboardX import SummaryWriter
-import options_lipnet as opt
+import options.options_lipnet as opt
 
 
 

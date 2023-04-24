@@ -26,8 +26,8 @@ class TCN(nn.Module):
 
 if __name__ == "__main__":
     import torch
-    from datasets import dataset
-    mydataset = dataset.MyDataset(
+    from datasets import dataset_land_read_detec
+    mydataset = dataset_land_read_detec.MyDataset(
         "data", "train_path.txt", 1112,
         [1, 1]
         ,[1, 1]

@@ -13,7 +13,7 @@ import copy
 import json
 import random
 import editdistance
-import options_lipnet as opt
+import options.options_lipnet as opt
 #from extract_lips import get_lips
 
 
@@ -179,7 +179,7 @@ if __name__ == '__main__':
     #     data = dataset.__getitem__(count)
     #     print(data.get('vid'))
     #     print(data.get('txt'))
-    import options_lipnet as opt
+    import options.options_lipnet as opt
 
     dataset = MyDataset(
         'data',

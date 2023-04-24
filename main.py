@@ -6,10 +6,10 @@ from torch.utils.data import DataLoader
 import math
 import os
 import sys
-from dataset import MyDataset
+from datasets.dataset import MyDataset
 import numpy as np
 import time
-from model import LipNet
+from mymodels.model import LipNet
 import torch.optim as optim
 import re
 import json
