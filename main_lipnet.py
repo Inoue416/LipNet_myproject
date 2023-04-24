@@ -215,7 +215,7 @@ def train(model, net):
 
 if(__name__ == '__main__'):
     print("Loading options...")
-    model = LipNet(color_mode=0, dropout_p=opt.dropout_p) # モデルの定義
+    model = LipNet(color_mode=opt.color_mode, dictype=opt.anno_kind, dropout_p=opt.dropout_p) # モデルの定義
     model = model.cuda() # gpu使用
     net = nn.DataParallel(model).cuda() # データの並列処理化
 
