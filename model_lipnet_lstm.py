@@ -29,19 +29,19 @@ class LipNet(torch.nn.Module):
 
         self.lstm1 = nn.LSTM(
             input_size=20*2,
-            hidden_size=256,
+            hidden_size=32,
             num_layers=1,
             batch_first=True,
             bidirectional=True
         )
 
-        self.lstm2 = nn.LSTM(
-            input_size=512,
-            hidden_size=256,
-            num_layers=1,
-            batch_first=True,
-            bidirectional=True
-        )
+        # self.lstm2 = nn.LSTM(
+        #     input_size=512,
+        #     hidden_size=256,
+        #     num_layers=1,
+        #     batch_first=True,
+        #     bidirectional=True
+        # )
 
 
 
@@ -94,18 +94,29 @@ class LipNet(torch.nn.Module):
                 init.orthogonal_(m.weight_hh_l0_reverse[i: i + 256])
                 init.constant_(m.bias_ih_l0_reverse[i: i + 256], 0)
 
-        for m in (self.lstm1, self.lstm2):
-            for i in range(0, 256*4, 256):
-                stdv = math.sqrt(2/(2*4*6+256)) 
-                init.uniform_(m.weight_ih_l0[i: i+256],
-                    -math.sqrt(4)*stdv, math.sqrt(4)*stdv
-                )
-                init.orthogonal_(m.weight_hh_l0[i: i+ 256])
-                init.constant_(m.bias_ih_l0[i: i + 256], 0)
-                init.uniform_(m.weight_ih_l0_reverse[i: i + 256],
-                            -math.sqrt(4) * stdv, math.sqrt(4) * stdv)
-                init.orthogonal_(m.weight_hh_l0_reverse[i: i + 256])
-                init.constant_(m.bias_ih_l0_reverse[i: i + 256], 0)
+        # for m in (self.lstm1, self.lstm2):
+            # for i in range(0, 256*4, 256):
+            #     stdv = math.sqrt(2/(2*4*6+256)) 
+            #     init.uniform_(m.weight_ih_l0[i: i+256],
+            #         -math.sqrt(4)*stdv, math.sqrt(4)*stdv
+            #     )
+            #     init.orthogonal_(m.weight_hh_l0[i: i+ 256])
+            #     init.constant_(m.bias_ih_l0[i: i + 256], 0)
+            #     init.uniform_(m.weight_ih_l0_reverse[i: i + 256],
+            #                 -math.sqrt(4) * stdv, math.sqrt(4) * stdv)
+            #     init.orthogonal_(m.weight_hh_l0_reverse[i: i + 256])
+            #     init.constant_(m.bias_ih_l0_reverse[i: i + 256], 0)
+        for i in range(0, 256*4, 256):
+            stdv = math.sqrt(2/(2*4*6+256)) 
+            init.uniform_(self.lstm1.weight_ih_l0[i: i+256],
+                -math.sqrt(4)*stdv, math.sqrt(4)*stdv
+            )
+            init.orthogonal_(self.lstm1.weight_hh_l0[i: i+ 256])
+            init.constant_(self.lstm1.bias_ih_l0[i: i + 256], 0)
+            init.uniform_(self.lstm1.weight_ih_l0_reverse[i: i + 256],
+                        -math.sqrt(4) * stdv, math.sqrt(4) * stdv)
+            init.orthogonal_(self.lstm1.weight_hh_l0_reverse[i: i + 256])
+            init.constant_(self.lstm1.bias_ih_l0_reverse[i: i + 256], 0)
 
 
 
@@ -142,13 +153,13 @@ class LipNet(torch.nn.Module):
         x = self.dropout(x)
 
         self.lstm1.flatten_parameters()
-        self.lstm2.flatten_parameters()
+        # self.lstm2.flatten_parameters()
         x2 = x2.contiguous()
         x2 = x2.view(x2.size(0), x2.size(1), -1).contiguous()
         x2, (hn_lstm, cn_lstm) = self.lstm1(x2)
         x2 = self.dropout(x2)
-        x2, (hn_lstm, cn_lstm) = self.lstm2(x2)
-        x2 = self.dropout(x2)
+        # x2, (hn_lstm, cn_lstm) = self.lstm2(x2)
+        # x2 = self.dropout(x2)
         x2 = x2.permute(1, 0, 2).contiguous()
         
         x = self.FC(x*x2)

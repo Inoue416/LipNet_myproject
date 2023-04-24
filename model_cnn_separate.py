@@ -4,23 +4,19 @@ import torch.nn.init as init
 import torch.nn.functional as F
 import math
 import numpy as np
+from models.cnn3d_separate import CNN3D_x2
 
 
-class LipNet(torch.nn.Module):
-    def __init__(self, color_mode, dictype, dropout_p=0.30, is_grad=False):  # color_mode -> 0: gray or 1: RGB
-        super(LipNet, self).__init__()
+class LipNetCNNSeparate(torch.nn.Module):
+    def __init__(self, color_mode, dictype, dropout_p=0.30, is_grad=False, separate_step=2):  # color_mode -> 0: gray or 1: RGB
+        super(LipNetCNNSeparate, self).__init__()
         self.is_grad = is_grad
-        first_feature = 3 if color_mode else 1
-        self.conv1 = nn.Conv3d(first_feature, 32, (3, 5, 5), (1, 2, 2), (1, 2, 2))
-        self.pool1 = nn.MaxPool3d((1, 2, 2), (1, 2, 2))
-
-        self.conv2 = nn.Conv3d(32, 64, (3, 5, 5), (1, 1, 1), (1, 2, 2))
-        self.pool2 = nn.MaxPool3d((1, 2, 2), (1, 2, 2))
-
-        self.conv3 = nn.Conv3d(64, 96, (3, 3, 3), (1, 1, 1), (1, 1, 1))
-        self.pool3 = nn.MaxPool3d((1, 2, 2), (1, 2, 2))
-
-
+        self.dropout_p  = dropout_p
+        self.separate_step = separate_step
+        self.cnn3ds = []
+        for step in range(self.separate_step):
+            self.cnn3ds.append(CNN3D_x2(color_mode=color_mode, dropout_p=self.dropout_p, is_grad=self.is_grad).cuda())
+        self.cnn3d_seq = nn.Sequential(self.cnn3ds)
         self.gru1  = nn.GRU(96*4*8, 256, 1, bidirectional=True)
         self.gru2  = nn.GRU(512, 256, 1, bidirectional=True)
         #self.gru3 = nn.GRU(512, 256, 1, bidirectional=True)
@@ -33,24 +29,12 @@ class LipNet(torch.nn.Module):
 
         self.FC = fc
 
-        self.dropout_p  = dropout_p
-
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout(self.dropout_p)
         self.dropout3d = nn.Dropout3d(self.dropout_p)
         self._init()
 
     def _init(self):
-
-        init.kaiming_normal_(self.conv1.weight, nonlinearity='relu') # He初期化 重みの初期化
-        init.constant_(self.conv1.bias, 0) # 入力テンソルに値を入れる constant_(テンソル, 埋める値) バイアスの初期化
-
-        #以下上記と同じ
-        init.kaiming_normal_(self.conv2.weight, nonlinearity='relu')
-        init.constant_(self.conv2.bias, 0)
-
-        init.kaiming_normal_(self.conv3.weight, nonlinearity='relu')
-        init.constant_(self.conv3.bias, 0)
 
         init.kaiming_normal_(self.FC.weight, nonlinearity='sigmoid')
         init.constant_(self.FC.bias, 0)
@@ -90,48 +74,51 @@ class LipNet(torch.nn.Module):
 
 
     def forward(self, x):
+        # separate x
+        xs = []
+        sep_num = x.size(2) // self.separate_step
+        for step in range(self.separate_step):
+            start = step*sep_num
+            end = x.size(2) if step == (self.separate_step - 1) \
+                else (step+1)*sep_num
+            xs.append(x[:, :, start:end, :, :])
 
-        x = self.conv1(x)
-        x = self.relu(x)
-        x = self.dropout3d(x)
-        x = self.pool1(x)
-
-        x = self.conv2(x)
-        x = self.relu(x)
-        x = self.dropout3d(x)
-        x = self.pool2(x)
-
-        x = self.conv3(x)
-        x = self.relu(x)
-        x = self.dropout3d(x)
-        x = self.pool3(x)
-        if self.is_grad:
-            x = x.clone().detach().requires_grad_(True)
+        outs = []
+        feature_cnns = []
+        for idx in range(len(self.cnn3ds)):
+            out = self.cnn3ds[idx](xs[idx])
+            if self.is_grad:
+                feature_cnns.append(out.clone().detach().requires_grad_(True))
+            outs.append(out)
+        output = torch.cat(outs, dim=2)
+        
         # (B, C, T, H, W)->(T, B, C, H, W)
-        out = x.permute(2, 0, 1, 3, 4).contiguous() # 軸の順番を変更
+        output = output.permute(2, 0, 1, 3, 4).contiguous() # 軸の順番を変更
         # また、contiguous()はviewにするとき、メモリ上に要素順に並ぶため、エラーを回避できる
         # (B, C, T, H, W)->(T, B, C*H*W)
-        out = out.view(out.size(0), out.size(1), -1).contiguous()
+        output = output.view(output.size(0), output.size(1), -1).contiguous()
 
         # RNNの重みがメモリ上で非連続にならないように
         # また、パラメータデータポインターをリセットして、より高速なコードパスを使用できるようになっている。
         self.gru1.flatten_parameters()
         self.gru2.flatten_parameters()
         #self.gru3.flatten_parameters()
-        out, h = self.gru1(out)
-        out = self.dropout(out)
-        out, h = self.gru2(out)
-        out = self.dropout(out)
+        output, h = self.gru1(output)
+        output = self.dropout(output)
+        output, h = self.gru2(output)
+        output = self.dropout(output)
         #x, h = self.gru3(x)
         #x = self.dropout(x)
-        out = self.FC(out)
-        out = out.permute(1, 0, 2).contiguous()
+        output = self.FC(output)
+        output = output.permute(1, 0, 2).contiguous()
         if self.is_grad:
-            return out, x
-        return out
+            return output, feature_cnns
+        return output
 
 if __name__ == '__main__':
     inputs = torch.randn(1, 1, 179, 64, 128)
-    model = LipNet(color_mode=0, dictype='anno_data_mydic')
-    out = model(inputs)
-    print(out.size())
+    model = LipNetCNNSeparate(color_mode=0, dictype='anno_data_mydic', separate_step=3)
+    print(model)
+    # out = model(inputs)
+    # print(out.size())
+    # print(model.separate_step)
