@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import os
-from dataset_lipnet import MyDataset
+from datasets.dataset_lipnet import MyDataset
 import numpy as np
-from model_lipnet import LipNet
-import options_lipnet as opt
+from mymodels.model_lipnet import LipNet
+import options.options_lipnet as opt
 import matplotlib.pyplot as plt
 import cv2
 from cvtransforms import *
@@ -20,7 +20,7 @@ DATA_FILES = [
     'data/val_lips_path.txt'
 ]
 
-GRAD_CAM_SAVE_ROOT = '/media/yuyainoue/neelabHDD/yuyainoueHDD/grad_cam_logfig'
+GRAD_CAM_SAVE_ROOT = '/media/yuyainoue/neelabHDD/yuyainoueHDD/grad_cam_logfig_with_txt'
 
 ANNO_KIND = 'anno_data_mydic'
 

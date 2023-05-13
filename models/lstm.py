@@ -2,11 +2,11 @@ import torch.nn as nn
 import torch.nn.init as init
 
 class LSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, bidirectional=True, dropout_p=0):
+    def __init__(self, input_size, hidden_size, num_layers, bidirectional=True, batch_first=False, dropout_p=0):
         super(LSTM, self).__init__()
         self.bidirectional = bidirectional
         self.lstm = nn.LSTM(
-            input_size, hidden_size, num_layers, bidirectional=bidirectional, dropout=dropout_p)
+            input_size, hidden_size, num_layers, bidirectional=bidirectional, batch_first=batch_first, dropout=dropout_p)
         self.init_weights()
 
     def init_weights(self):
@@ -39,7 +39,7 @@ class LSTM(nn.Module):
 if __name__ == '__main__':
     import torch
     model = LSTM(
-        10, 128, 1, True
+        10, 128, 1, True, True
     )
     input = torch.randn(5, 3, 10)
     output, (h, c) = model(input)

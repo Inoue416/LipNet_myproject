@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import os
-from datasets.dataset_lipnet_land import MyDataset
+from datasets.dataset_lipnet_land_multi import MyDataset
 import numpy as np
 import time
-from mymodels.model_lipnet_land import LipNetLand
+from mymodels.model_lipnet_land_multi import LipNetLandMulti
 import torch.optim as optim
 from tensorboardX import SummaryWriter
 import options.options_lipnet_land_multi as opt
@@ -70,22 +70,29 @@ def test(model, net):
         loss_list = []
         wer = []
         cer = []
+        acc_labels = []
         crit = nn.CTCLoss()
+        cross = nn.CrossEntropyLoss()
         tic = time.time()
         for (i_iter, input) in enumerate(loader):
             vid = input.get('vid').cuda()
             txt = input.get('txt').cuda()
             land = input.get('land').cuda()
+            label = input.get('label').cuda()
             vid_len = input.get('vid_len').cuda()
             txt_len = input.get('txt_len').cuda()
-
-            if not opt.is_batch_first:
-                land = land.view(land.size(1), land.size(0), land.size(2)).contiguous()
-
-            y = net(vid, land) # ネットへビデオデータを入れる
+            #print(vid_len)
+            #print(txt_len)
+            y, y2 = net(vid, land) # ネットへビデオデータを入れる
+            pred_label = torch.argmax(y2.clone().detach(), dim=1).cpu().numpy()
+            truth_label = label.clone().detach().cpu().numpy()
+            truth_label = truth_label.reshape(-1)
+            acc_label = calcurate_detect_accuracy(pred_label, truth_label)
             # 損出関数での処理
-            loss = crit(y.transpose(0, 1).log_softmax(-1), txt, vid_len.view(-1), txt_len.view(-1)).detach().cpu().numpy()
-            
+            loss1 = crit(y.transpose(0, 1).log_softmax(-1), txt, vid_len.view(-1), txt_len.view(-1)).detach().cpu().numpy()
+            label = torch.reshape(label, (opt.batch_size,))
+            loss2 = cross(y2, label).detach().cpu().numpy()
+            loss = loss1 + loss2
             #print(loss)
             # 損出関数の値を記録
             loss_list.append(loss)
@@ -96,6 +103,7 @@ def test(model, net):
             # 単語及び、文字のエラー率を算出
             wer.extend(MyDataset.wer(pred_txt, truth_txt))
             cer.extend(MyDataset.cer(pred_txt, truth_txt))
+            acc_labels.append(acc_label)
 
             # 条件の回数の時だけエラー率などを表示
             if(i_iter % opt.test_display == 0):
@@ -105,11 +113,16 @@ def test(model, net):
                 for (predict, truth) in list(zip(pred_txt, truth_txt))[:4]:
                     print('{:<50}|{:>50}'.format(predict, truth))
                 print(''.join(101 *'-'))
-                print('test_iter={},loss={},wer={},cer={}'.format(i_iter,loss,np.array(wer).mean(),np.array(cer).mean()))
+                print('Truth label: ', truth_label)
+                print('Predict label: ', pred_label)
+                print(''.join(101 *'-'))
+                print('Label Accuracy: {:.2f}%'.format(acc_label))
+                print(''.join(101 *'-'))
+                print('test_iter={},loss={},wer={},cer={},acc_label={}'.format(i_iter,loss,np.array(wer).mean(),np.array(cer).mean(),np.array(acc_labels).mean()))
                 print(''.join(101 *'-'))
         
         print('\n\ntest finish time: {:.2f} s\n\n'.format(time.time() - tic))
-        return (np.array(loss_list).mean(), np.array(wer).mean(), np.array(cer).mean())
+        return (np.array(loss_list).mean(), np.array(wer).mean(), np.array(cer).mean(), np.array(acc_labels).mean())
 
 # 訓練
 def train(model, net):
@@ -142,16 +155,19 @@ def train(model, net):
 
     #print('num_train_data:{}'.format(len(dataset.data)))
     crit = nn.CTCLoss()
+    cross = nn.CrossEntropyLoss()
     tic = time.time()
     train_wer = []
     train_cer = []
     loss_list = []
+    acc_labels = []
     for epoch in range(opt.max_epoch): # epoch分学習する
         epoch_tic = time.time()
         for (i_iter, input) in enumerate(loader):
             model.train() # 訓練モードへ
             vid = input.get('vid').cuda()
             land = input.get('land').cuda()
+            label = input.get('label').cuda()
             txt = input.get('txt').cuda()
             vid_len = input.get('vid_len').cuda()
             txt_len = input.get('txt_len').cuda()
@@ -163,9 +179,17 @@ def train(model, net):
                 land = land.view(land.size(1), land.size(0), land.size(2)).contiguous()
 
             optimizer.zero_grad() # パラメータ更新が終わった後の勾配のクリアを行っている。
-            y = net(vid, land) # ビデオデータをネットに投げる
+            y, y1 = net(vid, land) # ビデオデータをネットに投げる
             # 損出を求める
-            loss = crit(y.transpose(0, 1).log_softmax(-1), txt, vid_len.view(-1), txt_len.view(-1))
+            pred_label = torch.argmax(y1.clone().detach(), dim=1).cpu().numpy()
+            truth_label = label.clone().detach().cpu().numpy()
+            truth_label = truth_label.reshape(-1)
+            acc_label = calcurate_detect_accuracy(pred_label, truth_label)
+            acc_labels.append(acc_label)
+            loss1 = crit(y.transpose(0, 1).log_softmax(-1), txt, vid_len.view(-1), txt_len.view(-1))
+            label = torch.reshape(label, (opt.batch_size,))            
+            loss2 = cross(y1, label)
+            loss = loss1 + loss2
             loss_list.append(loss)
             #print(loss)
             # 損出をもとにバックワードで学習
@@ -184,31 +208,39 @@ def train(model, net):
 
             # 条件の回数の時、それぞれの経過を表示
             if(tot_iter % opt.train_display == 0):
-                writer.add_scalar('train loss ctc', loss, tot_iter)
+                writer.add_scalar('train loss ctc', loss1, tot_iter)
                 writer.add_scalar('train wer', np.array(train_wer).mean(), tot_iter)
                 writer.add_scalar('train cer', np.array(train_cer).mean(), tot_iter)
+                writer.add_scalar('train loss cross', loss2, tot_iter)
+                writer.add_scalar('train label accuracy', acc_label, tot_iter)
                 print(''.join(101*'-'))
                 print('{:<50}|{:>50}'.format('predict', 'truth'))
+                print(''.join(101*'-'))
+                print('Truth label: ', truth_label)
+                print('Predict label: ', pred_label)
+                print(''.join(101*'-'))
+                print('Label Accuracy: {:.2f}%'.format(acc_label))
                 print(''.join(101*'-'))
 
                 for (predict, truth) in list(zip(pred_txt, truth_txt))[:3]:
                     print('{:<50}|{:>50}'.format(predict, truth))
                 print(''.join(101*'-'))
-                print('epoch={},tot_iter={},base_lr={},loss_mean={}loss={},train_wer={},train_cer={}'.format(epoch, tot_iter, opt.base_lr, torch.mean(torch.stack(loss_list)), loss, np.array(train_wer).mean(), np.array(train_cer).mean()))
+                print('epoch={},tot_iter={},base_lr={},loss_mean={}loss={},train_wer={},train_cer={},train_acc_label={:.2f}'.format(epoch, tot_iter, opt.base_lr, torch.mean(torch.stack(loss_list)), loss, np.array(train_wer).mean(), np.array(train_cer).mean(), acc_label))
                 print(''.join(101*'-'))
 
             if(tot_iter % opt.test_step == 0):
-                (loss, wer, cer) = test(model, net)
-                print('i_iter={},lr={},loss={},wer={},cer={}'
-                    .format(tot_iter,show_lr(optimizer),loss,wer,cer))
+                (loss, wer, cer, acc_label) = test(model, net)
+                print('i_iter={},lr={},loss={},wer={},cer={},acc_label={:.2f}'
+                    .format(tot_iter,show_lr(optimizer),loss,wer,cer,acc_label))
                 writer.add_scalar('val loss', loss, tot_iter)
                 writer.add_scalar('wer', wer, tot_iter)
                 writer.add_scalar('cer', cer, tot_iter)
+                writer.add_scalar('acc label', acc_label, tot_iter)
 
             if (tot_iter % opt.save_step == 0):
                 if not os.path.exists(os.path.join(opt.save_folder_root, '_'.join([str(s) for s in [opt.year, opt.month, opt.day]]))):
                     os.makedirs(os.path.join(opt.save_folder_root, '_'.join([str(s) for s in [opt.year, opt.month, opt.day]])))
-                savename = 'base_lr{}{}_loss_{}_wer_{}_cer_{}.pt'.format(opt.base_lr, opt.save_prefix, torch.mean(torch.stack(loss_list)),  np.array(train_wer).mean(), np.array(train_cer).mean()) # 学習した重みを保存するための名前を作成
+                savename = 'base_lr{}{}_loss_{}_wer_{}_cer_{}_accLabel_{}.pt'.format(opt.base_lr, opt.save_prefix, torch.mean(torch.stack(loss_list)),  np.array(train_wer).mean(), np.array(train_cer).mean(), np.array(acc_labels).mean()) # 学習した重みを保存するための名前を作成
                 # print(savename)
                 (path, name) = os.path.split(savename)
                 # print(path)
@@ -230,11 +262,10 @@ def train(model, net):
 
 if(__name__ == '__main__'):
     print("Loading options...")
-    model = LipNetLand(T=opt.vid_padding, hidden_size=opt.hidden_size, num_layers=opt.num_layers,
+    model = LipNetLandMulti(T=opt.vid_padding, hidden_size=opt.hidden_size, num_layers=opt.num_layers,
                             color_mode=opt.color_mode, anno_kind=opt.anno_kind, bidirectional=opt.bidirectional,
-                            batch_first=opt.is_batch_first, act=opt.act, connect_kind=opt.connect_kind,
-                            dropout_p=opt.dropout_p, dropout3d_p=opt.dropout3d_p,
-                            lip_only=opt.lip_only) # モデルの定義
+                            batch_first=opt.is_batch_first, dropout_p=opt.dropout_p, dropout3d_p=opt.dropout3d_p) # モデルの定義
+    
     model = model.cuda() # gpu使用
     net = nn.DataParallel(model).cuda() # データの並列処理化
 

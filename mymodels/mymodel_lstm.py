@@ -4,7 +4,7 @@ from models.lstm import LSTM
 
 
 class MyLSTM(nn.Module):
-    def __init__(self, T, input_size, hidden_size, num_layers, bidirectional=True, dropout_p=0, is_dropout=False):
+    def __init__(self, T, input_size, hidden_size, num_layers, bidirectional=True, batch_first=False, dropout_p=0, is_dropout=False):
         """
             T: This param is frame length
             input_size: This param is input feature size
@@ -22,6 +22,7 @@ class MyLSTM(nn.Module):
             ,hidden_size
             ,num_layers
             ,bidirectional=bidirectional
+            ,batch_first=batch_first
             ,dropout_p=dp_p
         )
         self.dropout = None
@@ -37,9 +38,11 @@ class MyLSTM(nn.Module):
         
     def forward(self, x):
         x, (h,c) = self.LSTM(x)
-        x = x.view(x.size(1), -1).contiguous()
+        # x = x.view(x.size(1), -1).contiguous()
         if self.is_dropout:
             x = self.dropout(x)
         x = self.FC(x)
         return x
+    
+
 

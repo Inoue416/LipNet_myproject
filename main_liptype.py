@@ -5,10 +5,10 @@ import os
 from datasets.dataset_lipnet_land import MyDataset
 import numpy as np
 import time
-from mymodels.model_lipnet_land import LipNetLand
+from mymodels.model_liptype_2 import LipType
 import torch.optim as optim
 from tensorboardX import SummaryWriter
-import options.options_lipnet_land_multi as opt
+import options.options_liptype as opt
 
 
 
@@ -75,16 +75,16 @@ def test(model, net):
         for (i_iter, input) in enumerate(loader):
             vid = input.get('vid').cuda()
             txt = input.get('txt').cuda()
-            land = input.get('land').cuda()
+            # land = input.get('land').cuda()
             vid_len = input.get('vid_len').cuda()
             txt_len = input.get('txt_len').cuda()
 
-            if not opt.is_batch_first:
-                land = land.view(land.size(1), land.size(0), land.size(2)).contiguous()
+            # if not opt.is_batch_first:
+            #     land = land.view(land.size(1), land.size(0), land.size(2)).contiguous()
 
-            y = net(vid, land) # ネットへビデオデータを入れる
+            y = net(vid)#, land) # ネットへビデオデータを入れる
             # 損出関数での処理
-            loss = crit(y.transpose(0, 1).log_softmax(-1), txt, vid_len.view(-1), txt_len.view(-1)).detach().cpu().numpy()
+            loss = crit(y.log_softmax(-1), txt, vid_len.view(-1), txt_len.view(-1)).detach().cpu().numpy()
             
             #print(loss)
             # 損出関数の値を記録
@@ -151,7 +151,7 @@ def train(model, net):
         for (i_iter, input) in enumerate(loader):
             model.train() # 訓練モードへ
             vid = input.get('vid').cuda()
-            land = input.get('land').cuda()
+            # land = input.get('land').cuda()
             txt = input.get('txt').cuda()
             vid_len = input.get('vid_len').cuda()
             txt_len = input.get('txt_len').cuda()
@@ -159,13 +159,13 @@ def train(model, net):
             #print('vl : {}'.format(vid_len.view(-1)))
             #print('tl : {}'.format(txt_len.view(-1)))
 
-            if not opt.is_batch_first:
-                land = land.view(land.size(1), land.size(0), land.size(2)).contiguous()
+            # if not opt.is_batch_first:
+            #     land = land.view(land.size(1), land.size(0), land.size(2)).contiguous()
 
             optimizer.zero_grad() # パラメータ更新が終わった後の勾配のクリアを行っている。
-            y = net(vid, land) # ビデオデータをネットに投げる
+            y = net(vid)#, land) # ビデオデータをネットに投げる
             # 損出を求める
-            loss = crit(y.transpose(0, 1).log_softmax(-1), txt, vid_len.view(-1), txt_len.view(-1))
+            loss = crit(y.log_softmax(-1), txt, vid_len.view(-1), txt_len.view(-1))
             loss_list.append(loss)
             #print(loss)
             # 損出をもとにバックワードで学習
@@ -230,11 +230,8 @@ def train(model, net):
 
 if(__name__ == '__main__'):
     print("Loading options...")
-    model = LipNetLand(T=opt.vid_padding, hidden_size=opt.hidden_size, num_layers=opt.num_layers,
-                            color_mode=opt.color_mode, anno_kind=opt.anno_kind, bidirectional=opt.bidirectional,
-                            batch_first=opt.is_batch_first, act=opt.act, connect_kind=opt.connect_kind,
-                            dropout_p=opt.dropout_p, dropout3d_p=opt.dropout3d_p,
-                            lip_only=opt.lip_only) # モデルの定義
+    model = LipType(
+        color_mode=opt.color_mode, anno_kind=opt.anno_kind, dropout_p=opt.dropout3d_p) # モデルの定義
     model = model.cuda() # gpu使用
     net = nn.DataParallel(model).cuda() # データの並列処理化
 
